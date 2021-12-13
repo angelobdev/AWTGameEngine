@@ -5,6 +5,7 @@ import it.angelobdev.engine.controller.Controller;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings({"unused", ""})
 public abstract class Game extends Controller implements IGame, Runnable {
@@ -24,9 +25,15 @@ public abstract class Game extends Controller implements IGame, Runnable {
     private int FPS = 60;
 
     // Graphics handler ...
+    private BufferedImage canvas;
     protected Graphics2D g;
 
-    private void start() {
+    public Game() {
+
+        preInit();
+
+        canvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        g = (Graphics2D) canvas.getGraphics();
 
         //JPanel setup:
         panel = new JPanel() {
@@ -36,7 +43,17 @@ public abstract class Game extends Controller implements IGame, Runnable {
                 if (thread == null) {
                     thread = new Thread(Game.this);
                     thread.start();
+                    //Last touch...
+                    running = true;
                 }
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.drawImage(canvas, 0, 0, null);
+                g2.dispose();
             }
         };
         panel.setPreferredSize(new Dimension(width, height));
@@ -59,65 +76,50 @@ public abstract class Game extends Controller implements IGame, Runnable {
         window.setResizable(false);
         window.setVisible(true);
         window.setContentPane(panel);
-
-        //Thread setup:
-        thread = new Thread(this);
-        thread.start();
-
-        //Last touch...
-        running = true;
     }
 
     @Override
     public void run() {
 
-        if (!running)
-            start();
 
-        else {
+        init();
 
-            init();
+        long DELTA;
+        long startTime;
+        long elapsedTime;
+        long waitTime;
 
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            g = (Graphics2D) image.getGraphics();
-            running = true;
+        while (running) {
 
-            long DELTA;
-            long startTime;
-            long elapsedTime;
-            long waitTime;
+            DELTA = 1000 / FPS;
+            startTime = System.nanoTime();
 
-            while (running) {
+            //Updating elements
+            update();
+            //Drawing background (preparing for new elements)
+            g.setColor(bg_color);
+            g.fillRect(0, 0, width, height);
+            //Rendering new graphical elements
+            render();
+            //Drawing on screen
+            panel.repaint();
 
-                DELTA = 1000 / FPS;
-                startTime = System.nanoTime();
+            elapsedTime = System.nanoTime() - startTime;
+            waitTime = DELTA - elapsedTime / 1000000;
 
-                if (panel.getGraphics() != null) {
-                    panel.getGraphics().drawImage(image, 0, 0, null);
-                    panel.getGraphics().dispose();
-                }
+            if (waitTime < 5)
+                waitTime = 5;
 
-                update();
-
-                //Drawing background
-                g.setColor(bg_color);
-                g.fillRect(0, 0, width, height);
-
-                render();
-
-                elapsedTime = System.nanoTime() - startTime;
-                waitTime = DELTA - elapsedTime / 1000000;
-
-                if (waitTime < 5)
-                    waitTime = 5;
-
-                try {
-                    Thread.sleep(waitTime);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            try {
+                TimeUnit.MILLISECONDS.sleep(waitTime);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
+
         }
+
+        System.exit(0);
+
     }//run
 
     /* GETTERS AND SETTERS FOR RESTRICTED VARIABLES */
